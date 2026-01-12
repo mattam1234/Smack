@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Smack</title>
+</head>
+<body>
+    <div id="SmackConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="SmackConfigForm">
+                    <h2>Smack Remote Servers</h2>
+
+                    <div class="fieldDescription">Configure remote Jellyfin servers that this instance can stream from.</div>
+
+                    <div id="SmackServersList"></div>
+
+                    <h3>Add / Edit Remote Server</h3>
+                    <input id="SmackServerId" type="hidden" />
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmackServerName">Name</label>
+                        <input id="SmackServerName" name="SmackServerName" type="text" is="emby-input" />
+                        <div class="fieldDescription">A friendly name for this remote server.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmackServerUrl">Server URL</label>
+                        <input id="SmackServerUrl" name="SmackServerUrl" type="text" is="emby-input" placeholder="https://remote-jellyfin.example.com" />
+                        <div class="fieldDescription">Base URL of the remote Jellyfin server.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SmackServerApiKey">API Key</label>
+                        <input id="SmackServerApiKey" name="SmackServerApiKey" type="password" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">API key for an account on the remote server with access to the media you want to stream. This is stored in plain text in the Jellyfin configuration; use only on trusted servers.</div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="button" id="SmackSaveServerButton" class="raised block emby-button">
+                            <span>Save Server</span>
+                        </button>
+                        <button is="emby-button" type="button" id="SmackCancelEditButton" class="raised block emby-button" style="margin-left:0.5em;">
+                            <span>Cancel</span>
+                        </button>
+                    </div>
+
+                    <div style="margin-top:2em;">
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var SmackConfig = {
+                pluginUniqueId: '11111111-2222-3333-4444-555555555555'
+            };
+
+            function clearSmackForm() {
+                document.querySelector('#SmackServerId').value = '';
+                document.querySelector('#SmackServerName').value = '';
+                document.querySelector('#SmackServerUrl').value = '';
+                document.querySelector('#SmackServerApiKey').value = '';
+            }
+
+            function renderSmackServers(servers) {
+                var container = document.querySelector('#SmackServersList');
+                container.innerHTML = '';
+
+                if (!servers || !servers.length) {
+                    container.innerHTML = '<p>No remote servers configured.</p>';
+                    return;
+                }
+
+                var list = document.createElement('div');
+
+                servers.forEach(function (server, index) {
+                    var row = document.createElement('div');
+                    row.className = 'inputContainer';
+
+                    var title = document.createElement('div');
+                    title.innerHTML = '<strong>' + (server.Name || ('Server ' + (index + 1))) + '</strong>';
+
+                    var url = document.createElement('div');
+                    url.textContent = 'URL: ' + (server.ServerUrl || '(not set)');
+
+                    var api = document.createElement('div');
+                    api.textContent = 'API key: ' + (server.ApiKey ? 'configured' : 'not set');
+
+                    var user = document.createElement('div');
+                    user.textContent = 'User Id: ' + (server.RemoteUserId || '(not set)');
+
+                    var actions = document.createElement('div');
+                    actions.style.marginTop = '0.5em';
+
+                    var editButton = document.createElement('button');
+                    editButton.type = 'button';
+                    editButton.className = 'emby-button';
+                    editButton.textContent = 'Edit';
+                    editButton.addEventListener('click', function () {
+                        document.querySelector('#SmackServerId').value = server.Id || '';
+                        document.querySelector('#SmackServerName').value = server.Name || '';
+                        document.querySelector('#SmackServerUrl').value = server.ServerUrl || '';
+                        // Do not prefill API key for extra safety; require re-entry when editing.
+                        document.querySelector('#SmackServerApiKey').value = '';
+                    });
+
+                    var deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.className = 'emby-button';
+                    deleteButton.style.marginLeft = '0.5em';
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.addEventListener('click', function () {
+                        deleteSmackServer(server.Id);
+                    });
+
+                    actions.appendChild(editButton);
+                    actions.appendChild(deleteButton);
+
+                    row.appendChild(title);
+                    row.appendChild(url);
+                    row.appendChild(api);
+                    row.appendChild(user);
+                    row.appendChild(actions);
+
+                    list.appendChild(row);
+                });
+
+                container.appendChild(list);
+            }
+
+            function loadSmackConfig() {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(SmackConfig.pluginUniqueId).then(function (config) {
+                    var servers = config.RemoteServers || [];
+                    renderSmackServers(servers);
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function saveSmackServer() {
+                ApiClient.getPluginConfiguration(SmackConfig.pluginUniqueId).then(function (config) {
+                    config.RemoteServers = config.RemoteServers || [];
+
+                    var id = document.querySelector('#SmackServerId').value || '';
+                    var name = document.querySelector('#SmackServerName').value || '';
+                    var url = document.querySelector('#SmackServerUrl').value || '';
+                    var apiKey = document.querySelector('#SmackServerApiKey').value || '';
+
+                    if (!name || !url) {
+                        alert('Name and URL are required.');
+                        return;
+                    }
+
+                    try {
+                        var tmp = new URL(url);
+                        if (tmp.protocol !== 'http:' && tmp.protocol !== 'https:') {
+                            alert('Server URL must start with http or https.');
+                            return;
+                        }
+                    } catch (e) {
+                        alert('Server URL is not valid.');
+                        return;
+                    }
+
+                    var existing = null;
+                    if (id) {
+                        existing = config.RemoteServers.find(function (s) { return s.Id === id; });
+                    }
+
+                    if (existing) {
+                        existing.Name = name;
+                        existing.ServerUrl = url;
+                        if (apiKey) {
+                            existing.ApiKey = apiKey;
+                        }
+                    } else {
+                        if (!apiKey) {
+                            alert('API key is required for new servers.');
+                            return;
+                        }
+
+                        config.RemoteServers.push({
+                            Id: null,
+                            Name: name,
+                            ServerUrl: url,
+                            ApiKey: apiKey,
+                            RemoteUserId: ''
+                        });
+                    }
+
+                    ApiClient.updatePluginConfiguration(SmackConfig.pluginUniqueId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        clearSmackForm();
+                        renderSmackServers(config.RemoteServers);
+                    });
+                });
+            }
+
+            function deleteSmackServer(id) {
+                if (!id) {
+                    return;
+                }
+
+                if (!confirm('Delete this remote server?')) {
+                    return;
+                }
+
+                ApiClient.getPluginConfiguration(SmackConfig.pluginUniqueId).then(function (config) {
+                    config.RemoteServers = (config.RemoteServers || []).filter(function (s) { return s.Id !== id; });
+
+                    ApiClient.updatePluginConfiguration(SmackConfig.pluginUniqueId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        clearSmackForm();
+                        renderSmackServers(config.RemoteServers);
+                    });
+                });
+            }
+
+            document.querySelector('#SmackConfigPage')
+                .addEventListener('pageshow', function () {
+                    loadSmackConfig();
+                });
+
+            document.querySelector('#SmackSaveServerButton')
+                .addEventListener('click', function () {
+                    saveSmackServer();
+                });
+
+            document.querySelector('#SmackCancelEditButton')
+                .addEventListener('click', function () {
+                    clearSmackForm();
+                });
+
+            document.querySelector('#SmackConfigForm')
+                .addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    loadSmackConfig();
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>

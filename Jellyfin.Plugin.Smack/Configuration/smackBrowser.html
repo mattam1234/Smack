@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Smack Browser</title>
+</head>
+<body>
+    <div id="SmackBrowserPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-itemscontainer">
+        <div data-role="content">
+            <div class="content-primary">
+                <h2>Smack Remote Browser</h2>
+                <div class="fieldDescription">Browse libraries and items from configured remote Jellyfin servers.</div>
+
+                <div id="SmackBrowserStatus" class="fieldDescription"></div>
+
+                <div id="SmackBrowserServers" class="inputContainer">
+                    <label class="inputLabel">Remote Servers</label>
+                    <select id="SmackBrowserServerSelect" is="emby-select" class="emby-select-withcolor emby-select"></select>
+                </div>
+
+                <div id="SmackBrowserLibraries" class="inputContainer">
+                    <label class="inputLabel">Libraries</label>
+                    <select id="SmackBrowserLibrarySelect" is="emby-select" class="emby-select-withcolor emby-select"></select>
+                </div>
+
+                <div id="SmackBrowserItems" class="inputContainer">
+                    <label class="inputLabel">Items</label>
+                    <div id="SmackBrowserItemsList" class="itemsContainer itemsContainer-persons autoScrollY"></div>
+                </div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var SmackBrowser = {
+                pluginBasePath: 'Smack',
+                navigationStack: []
+            };
+
+            function setSmackStatus(message) {
+                var el = document.querySelector('#SmackBrowserStatus');
+                el.textContent = message || '';
+            }
+
+            function smackFetchJson(url) {
+                setSmackStatus('Loading...');
+                return ApiClient.fetch(url, { method: 'GET' }).then(function (response) {
+                    if (!response.ok) {
+                        setSmackStatus('Request failed: ' + response.status);
+                        throw new Error('Request failed: ' + response.status);
+                    }
+
+                    return response.json().then(function (data) {
+                        setSmackStatus('');
+                        return data;
+                    });
+                }).catch(function (e) {
+                    setSmackStatus(e.message || 'Request failed.');
+                    throw e;
+                });
+            }
+
+            function loadSmackServers() {
+                var select = document.querySelector('#SmackBrowserServerSelect');
+                var librarySelect = document.querySelector('#SmackBrowserLibrarySelect');
+                var itemsContainer = document.querySelector('#SmackBrowserItemsList');
+
+                SmackBrowser.navigationStack = [];
+
+                select.innerHTML = '';
+                librarySelect.innerHTML = '';
+                itemsContainer.innerHTML = '';
+
+                var optPlaceholder = document.createElement('option');
+                optPlaceholder.textContent = 'Select a server...';
+                optPlaceholder.value = '';
+                select.appendChild(optPlaceholder);
+
+                return smackFetchJson(SmackBrowser.pluginBasePath + '/Servers')
+                    .then(function (servers) {
+                        if (!servers || !servers.length) {
+                            optPlaceholder.textContent = 'No servers configured';
+                            return;
+                        }
+
+                        servers.forEach(function (s, index) {
+                            var opt = document.createElement('option');
+                            opt.value = s.Id;
+                            opt.textContent = s.Name || ('Server ' + (index + 1));
+                            select.appendChild(opt);
+                        });
+                    });
+            }
+
+            function loadSmackLibraries(serverId) {
+                if (!serverId) {
+                    return;
+                }
+
+                SmackBrowser.navigationStack = [];
+
+                smackFetchJson(SmackBrowser.pluginBasePath + '/Libraries/' + encodeURIComponent(serverId)).then(function (libraries) {
+                    var select = document.querySelector('#SmackBrowserLibrarySelect');
+                    select.innerHTML = '';
+
+                    if (!libraries || !libraries.length) {
+                        var opt = document.createElement('option');
+                        opt.textContent = 'No libraries';
+                        opt.value = '';
+                        select.appendChild(opt);
+                        return;
+                    }
+
+                    var placeholder = document.createElement('option');
+                    placeholder.textContent = 'Select a library...';
+                    placeholder.value = '';
+                    select.appendChild(placeholder);
+
+                    libraries.forEach(function (lib, index) {
+                        var opt = document.createElement('option');
+                        opt.value = lib.Id;
+                        opt.textContent = lib.Name || ('Library ' + (index + 1));
+                        select.appendChild(opt);
+                    });
+                });
+            }
+
+            function renderSmackItems(items, serverId, parentId) {
+                var container = document.querySelector('#SmackBrowserItemsList');
+                container.innerHTML = '';
+
+                var navBar = document.createElement('div');
+                navBar.className = 'fieldDescription';
+
+                if (SmackBrowser.navigationStack.length > 1) {
+                    var upButton = document.createElement('button');
+                    upButton.type = 'button';
+                    upButton.className = 'emby-button emby-button-back';
+                    upButton.textContent = 'Up';
+                    upButton.style.marginRight = '0.5em';
+                    upButton.addEventListener('click', function () {
+                        SmackBrowser.navigationStack.pop();
+                        var previous = SmackBrowser.navigationStack[SmackBrowser.navigationStack.length - 1];
+                        if (previous) {
+                            loadSmackItems(previous.serverId, previous.parentId, false);
+                        }
+                    });
+                    navBar.appendChild(upButton);
+                }
+
+                if (SmackBrowser.navigationStack.length > 0) {
+                    var pathSpan = document.createElement('span');
+                    var names = SmackBrowser.navigationStack.map(function (e) { return e.name; });
+                    pathSpan.textContent = 'Path: ' + names.join(' / ');
+                    navBar.appendChild(pathSpan);
+                }
+
+                container.appendChild(navBar);
+
+                if (!items || !items.length) {
+                    var empty = document.createElement('p');
+                    empty.textContent = 'No items.';
+                    container.appendChild(empty);
+                    return;
+                }
+
+                items.forEach(function (item) {
+                    var card = document.createElement('div');
+                    card.className = 'card squareCard scalableCard';
+
+                    var cardBox = document.createElement('div');
+                    cardBox.className = 'cardBox';
+
+                    var innerCardBox = document.createElement('div');
+                    innerCardBox.className = 'cardScalable';
+
+                    var overlay = document.createElement('div');
+                    overlay.className = 'cardOverlayButton cardOverlayButton-hover';
+
+                    var overlayIcon = document.createElement('button');
+                    overlayIcon.type = 'button';
+                    overlayIcon.className = 'emby-button cardOverlayButton-icon';
+
+                    var overlayIconSpan = document.createElement('span');
+                    overlayIconSpan.className = 'material-icons cardOverlayButtonIcon';
+                    overlayIconSpan.textContent = item.IsFolder ? 'folder_open' : 'play_arrow';
+                    overlayIcon.appendChild(overlayIconSpan);
+
+                    overlay.appendChild(overlayIcon);
+
+                    var content = document.createElement('div');
+                    content.className = 'cardPadder cardContent';
+
+                    var title = document.createElement('div');
+                    title.className = 'cardText cardTextCentered';
+                    title.textContent = item.Name || item.Id;
+
+                    content.appendChild(title);
+
+                    innerCardBox.appendChild(overlay);
+                    innerCardBox.appendChild(content);
+
+                    cardBox.appendChild(innerCardBox);
+                    card.appendChild(cardBox);
+
+                    if (item.IsFolder) {
+                        overlayIcon.addEventListener('click', function () {
+                            SmackBrowser.navigationStack.push({ serverId: serverId, parentId: item.Id, name: item.Name || item.Id });
+                            loadSmackItems(serverId, item.Id, false);
+                        });
+                    } else {
+                        overlayIcon.addEventListener('click', function () {
+                            openSmackStream(item.Id);
+                        });
+                    }
+
+                    container.appendChild(card);
+                });
+            }
+
+            function loadSmackItems(serverId, parentId, pushToStack) {
+                if (!serverId || !parentId) {
+                    return;
+                }
+
+                if (pushToStack === undefined) {
+                    pushToStack = true;
+                }
+
+                if (pushToStack) {
+                    var libSelect = document.querySelector('#SmackBrowserLibrarySelect');
+                    var name = parentId;
+                    if (libSelect && libSelect.value === parentId) {
+                        name = libSelect.options[libSelect.selectedIndex].textContent;
+                    }
+
+                    SmackBrowser.navigationStack.push({ serverId: serverId, parentId: parentId, name: name });
+                }
+
+                smackFetchJson(SmackBrowser.pluginBasePath + '/Items/' + encodeURIComponent(serverId) + '/' + encodeURIComponent(parentId))
+                    .then(function (items) {
+                        renderSmackItems(items, serverId, parentId);
+                    });
+            }
+
+            function trySmackNativePlayback(data) {
+                try {
+                    if (!data || !data.StreamUrl) {
+                        return false;
+                    }
+
+                    var manager = window.playbackManager || (window.App && window.App.playbackManager);
+                    if (!manager) {
+                        return false;
+                    }
+
+                    var mediaSource = {
+                        Id: data.ItemId,
+                        Path: data.StreamUrl,
+                        Protocol: data.Protocol || 'File',
+                        MediaStreams: []
+                    };
+
+                    var item = {
+                        Id: data.ItemId,
+                        Name: data.Name || data.ItemId,
+                        MediaType: data.MediaType || 'Video',
+                        Type: (data.MediaType === 'Audio') ? 'Audio' : 'Video',
+                        MediaSources: [mediaSource]
+                    };
+
+                    var options = {};
+
+                    if (typeof manager.play === 'function') {
+                        manager.play({ items: [item] }, options);
+                        return true;
+                    }
+
+                    return false;
+                } catch (e) {
+                    if (console && console.warn) {
+                        console.warn('Smack native playback failed', e);
+                    }
+
+                    return false;
+                }
+            }
+
+            function openSmackStream(itemId) {
+                var serverId = document.querySelector('#SmackBrowserServerSelect').value;
+                if (!serverId || !itemId) {
+                    return;
+                }
+
+                var url = SmackBrowser.pluginBasePath + '/Stream/' +
+                    encodeURIComponent(serverId) + '/' +
+                    encodeURIComponent(itemId);
+
+                smackFetchJson(url)
+                    .then(function (data) {
+                        if (data && data.StreamUrl) {
+                            var nativeOk = trySmackNativePlayback(data);
+                            if (!nativeOk) {
+                                window.open(data.StreamUrl, '_blank');
+                            }
+                        } else {
+                            setSmackStatus('No stream URL returned for this item.');
+                        }
+                    })
+                    .catch(function (e) {
+                        setSmackStatus('Failed to get stream URL: ' + e.message);
+                    });
+            }
+
+            document.querySelector('#SmackBrowserServerSelect')
+                .addEventListener('change', function () {
+                    var serverId = this.value;
+                    if (serverId) {
+                        loadSmackLibraries(serverId);
+                    }
+                });
+
+            document.querySelector('#SmackBrowserLibrarySelect')
+                .addEventListener('change', function () {
+                    var serverId = document.querySelector('#SmackBrowserServerSelect').value;
+                    var libraryId = this.value;
+                    if (serverId && libraryId) {
+                        SmackBrowser.navigationStack = [{ serverId: serverId, parentId: libraryId, name: this.options[this.selectedIndex].textContent }];
+                        loadSmackItems(serverId, libraryId, false);
+                    }
+                });
+
+            document.querySelector('#SmackBrowserPage')
+                .addEventListener('pageshow', function () {
+                    setSmackStatus('');
+                    loadSmackServers();
+                });
+        </script>
+    </div>
+</body>
+</html>
