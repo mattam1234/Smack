@@ -4,7 +4,7 @@ VisualStudioVersion = 18.1.11312.151
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Smack", "Jellyfin.Plugin.Smack\Jellyfin.Plugin.Smack.csproj", "{D921B930-CF91-406F-ACBC-08914DCD0D34}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Tests", "Jellyfin.Plugin.Smack\Jellyfin.Plugin.Tests.csproj", "{1BB5105B-364A-4694-B7FA-96AB4B6F8CFC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Tests", "Jellyfin.Plugin.Tests\Jellyfin.Plugin.Tests.csproj", "{1BB5105B-364A-4694-B7FA-96AB4B6F8CFC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

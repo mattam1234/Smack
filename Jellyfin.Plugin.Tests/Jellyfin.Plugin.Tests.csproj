@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Jellyfin.Plugin.Template\Jellyfin.Plugin.Smack.csproj" />
+    <ProjectReference Include="..\Jellyfin.Plugin.Smack\Jellyfin.Plugin.Smack.csproj" />
   </ItemGroup>
 
   <ItemGroup>
