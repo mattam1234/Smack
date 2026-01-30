@@ -127,11 +127,10 @@ public class SmackController : ControllerBase
     /// </summary>
     /// <param name="serverId">The local identifier of the remote server.</param>
     /// <param name="itemId">The remote item id.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>An object containing the stream URL and basic metadata.</returns>
     [HttpGet("Stream/{serverId}/{itemId}")]
     [ProducesResponseType(typeof(object), 200)]
-    public ActionResult<object> GetStream(string serverId, string itemId, CancellationToken cancellationToken)
+    public ActionResult<object> GetStream(string serverId, string itemId)
     {
         var validationResult = ValidateAndGetServer(serverId);
         if (validationResult.ErrorResult != null)

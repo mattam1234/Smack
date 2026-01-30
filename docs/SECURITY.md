@@ -60,9 +60,29 @@ The configuration page validates:
 
 ### Authentication
 
-1. API keys are sent as query parameters in requests to remote servers.
+1. **API Key Transmission**: API keys are sent as query parameters in URLs when making requests to remote Jellyfin servers.
+   - **Security Consideration**: Query parameters may be logged in server logs, browser history, and proxy logs.
+   - **Mitigation**: This approach is required by the Jellyfin API. Always use HTTPS to encrypt the entire URL including query parameters.
+   - **Best Practice**: Use dedicated API keys with minimal permissions to limit exposure if keys are logged.
+
 2. The plugin does not implement any additional authentication layer.
 3. All security depends on the remote server's API key validation.
+
+### API Key Exposure Risks
+
+When using API keys in query parameters:
+
+- **Server Logs**: The API key will appear in remote server access logs
+- **Browser History**: URLs with API keys may be stored in browser history (for stream URLs opened in new tabs)
+- **Referrer Headers**: If the stream page navigates elsewhere, the API key might be sent in HTTP Referrer headers
+
+**Mitigation Strategies**:
+
+1. Use HTTPS exclusively to prevent network interception
+2. Use API keys with read-only permissions
+3. Regularly rotate API keys
+4. Monitor remote server access logs for suspicious activity
+5. Use private/incognito browsing when testing stream URLs directly
 
 ### Streaming
 
