@@ -10,7 +10,7 @@ namespace Jellyfin.Plugin.Tests;
 public class SmackRemoteClientTests
 {
     [Fact]
-    public async Task GetStreamUrlAsync_BuildsExpectedUrl()
+    public void GetStreamUrl_BuildsExpectedUrl()
     {
         using var httpClient = new HttpClient();
         var client = new SmackRemoteClient(httpClient);
@@ -23,7 +23,7 @@ public class SmackRemoteClientTests
 
         var itemId = "item-42";
 
-        var uri = await client.GetStreamUrlAsync(server, itemId, CancellationToken.None);
+        var uri = client.GetStreamUrl(server, itemId);
 
         Assert.NotNull(uri);
         Assert.Equal(
@@ -32,7 +32,7 @@ public class SmackRemoteClientTests
     }
 
     [Fact]
-    public async Task GetStreamUrlAsync_ReturnsNull_WhenItemIdMissing()
+    public void GetStreamUrl_ReturnsNull_WhenItemIdMissing()
     {
         using var httpClient = new HttpClient();
         var client = new SmackRemoteClient(httpClient);
@@ -43,13 +43,13 @@ public class SmackRemoteClientTests
             ApiKey = "key"
         };
 
-        var uri = await client.GetStreamUrlAsync(server, string.Empty, CancellationToken.None);
+        var uri = client.GetStreamUrl(server, string.Empty);
 
         Assert.Null(uri);
     }
 
     [Fact]
-    public async Task GetStreamUrlAsync_Throws_WhenServerUrlInvalid()
+    public void GetStreamUrl_Throws_WhenServerUrlInvalid()
     {
         using var httpClient = new HttpClient();
         var client = new SmackRemoteClient(httpClient);
@@ -60,7 +60,7 @@ public class SmackRemoteClientTests
             ApiKey = "key"
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.GetStreamUrlAsync(server, "item", CancellationToken.None));
+        Assert.Throws<InvalidOperationException>(() =>
+            client.GetStreamUrl(server, "item"));
     }
 }

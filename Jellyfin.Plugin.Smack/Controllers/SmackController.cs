@@ -155,7 +155,7 @@ public class SmackController : ControllerBase
     /// <returns>An object containing the stream URL and basic metadata.</returns>
     [HttpGet("Stream/{serverId}/{itemId}")]
     [ProducesResponseType(typeof(object), 200)]
-    public async Task<ActionResult<object>> GetStream(string serverId, string itemId, CancellationToken cancellationToken)
+    public ActionResult<object> GetStream(string serverId, string itemId, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance?.Configuration;
         if (config == null)
@@ -176,7 +176,7 @@ public class SmackController : ControllerBase
 
         try
         {
-            var uri = await _remoteClient.GetStreamUrlAsync(server, itemId, cancellationToken).ConfigureAwait(false);
+            var uri = _remoteClient.GetStreamUrl(server, itemId);
             if (uri == null)
             {
                 return NotFound("Unable to build stream URL for remote item.");
@@ -195,10 +195,6 @@ public class SmackController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(ex.Message);
-        }
-        catch (HttpRequestException ex)
-        {
-            return StatusCode(502, "Remote server error: " + ex.Message);
         }
     }
 }
