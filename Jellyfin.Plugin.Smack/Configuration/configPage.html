@@ -70,7 +70,9 @@
                 container.innerHTML = '';
 
                 if (!servers || !servers.length) {
-                    container.innerHTML = '<p>No remote servers configured.</p>';
+                    var noServersMsg = document.createElement('p');
+                    noServersMsg.textContent = 'No remote servers configured.';
+                    container.appendChild(noServersMsg);
                     return;
                 }
 
@@ -81,7 +83,9 @@
                     row.className = 'inputContainer';
 
                     var title = document.createElement('div');
-                    title.innerHTML = '<strong>' + (server.Name || ('Server ' + (index + 1))) + '</strong>';
+                    var strong = document.createElement('strong');
+                    strong.textContent = server.Name || ('Server ' + (index + 1));
+                    title.appendChild(strong);
 
                     var url = document.createElement('div');
                     url.textContent = 'URL: ' + (server.ServerUrl || '(not set)');
@@ -145,12 +149,17 @@
                     config.RemoteServers = config.RemoteServers || [];
 
                     var id = document.querySelector('#SmackServerId').value || '';
-                    var name = document.querySelector('#SmackServerName').value || '';
-                    var url = document.querySelector('#SmackServerUrl').value || '';
-                    var apiKey = document.querySelector('#SmackServerApiKey').value || '';
+                    var name = (document.querySelector('#SmackServerName').value || '').trim();
+                    var url = (document.querySelector('#SmackServerUrl').value || '').trim();
+                    var apiKey = (document.querySelector('#SmackServerApiKey').value || '').trim();
 
                     if (!name || !url) {
                         alert('Name and URL are required.');
+                        return;
+                    }
+
+                    if (name.length > 100) {
+                        alert('Server name must be 100 characters or less.');
                         return;
                     }
 
