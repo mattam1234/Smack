@@ -1,16 +1,17 @@
 ---
 name: "Smack"
-guid: "eb5d7894-8eef-4b36-aa6f-5d124e828ce1"
+guid: "11111111-2222-3333-4444-555555555555"
 version: "1.0.0.0"
 targetAbi: "10.9.0.0"
-framework: "net8.0"
-overview: "Short description about your plugin"
+framework: "net9.0"
+overview: "Browse and stream media from remote Jellyfin servers"
 description: >
-  This is a longer description that can span more than one
-  line and include details about your plugin.
+  Smack lets one Jellyfin server browse and stream media from one or more 
+  remote Jellyfin servers. Configure remote servers via API keys, then 
+  browse and stream their content without permanent sync or import.
 category: "General"
 owner: "jellyfin"
 artifacts:
 - "Jellyfin.Plugin.Smack.dll"
 changelog: >
-  changelog
+  Initial release with remote server browsing and streaming capabilities.

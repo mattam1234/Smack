@@ -21,7 +21,8 @@ public class SmackRemoteClient
     /// <param name="httpClient">The HTTP client instance.</param>
     public SmackRemoteClient(HttpClient httpClient)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        ArgumentNullException.ThrowIfNull(httpClient);
+        _httpClient = httpClient;
     }
 
     /// <summary>
@@ -34,12 +35,7 @@ public class SmackRemoteClient
     {
         ArgumentNullException.ThrowIfNull(server);
 
-        if (!Uri.TryCreate(server.ServerUrl, UriKind.Absolute, out var baseUri))
-        {
-            throw new InvalidOperationException("Remote ServerUrl is not a valid absolute URI.");
-        }
-
-        baseUri = new Uri(baseUri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+        var baseUri = GetValidatedBaseUri(server);
         var requestUri = new Uri(baseUri, "Users/Me/Views?api_key=" + Uri.EscapeDataString(server.ApiKey));
 
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
@@ -56,8 +52,8 @@ public class SmackRemoteClient
         {
             foreach (var item in itemsElement.EnumerateArray())
             {
-                var id = item.TryGetProperty("Id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
-                var name = item.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+                var id = GetStringProperty(item, "Id");
+                var name = GetStringProperty(item, "Name");
 
                 if (!string.IsNullOrEmpty(id))
                 {
@@ -84,12 +80,7 @@ public class SmackRemoteClient
     {
         ArgumentNullException.ThrowIfNull(server);
 
-        if (!Uri.TryCreate(server.ServerUrl, UriKind.Absolute, out var baseUri))
-        {
-            throw new InvalidOperationException("Remote ServerUrl is not a valid absolute URI.");
-        }
-
-        baseUri = new Uri(baseUri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+        var baseUri = GetValidatedBaseUri(server);
         parentId ??= string.Empty;
 
         var query = "Users/Me/Items?ParentId=" + Uri.EscapeDataString(parentId) +
@@ -111,15 +102,15 @@ public class SmackRemoteClient
         {
             foreach (var item in itemsElement.EnumerateArray())
             {
-                var id = item.TryGetProperty("Id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
+                var id = GetStringProperty(item, "Id");
                 if (string.IsNullOrEmpty(id))
                 {
                     continue;
                 }
 
-                var name = item.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
-                var parent = item.TryGetProperty("ParentId", out var parentProp) ? parentProp.GetString() ?? string.Empty : string.Empty;
-                var type = item.TryGetProperty("Type", out var typeProp) ? typeProp.GetString() ?? string.Empty : string.Empty;
+                var name = GetStringProperty(item, "Name");
+                var parent = GetStringProperty(item, "ParentId");
+                var type = GetStringProperty(item, "Type");
                 var isFolder = item.TryGetProperty("IsFolder", out var folderProp) && folderProp.ValueKind == JsonValueKind.True;
 
                 list.Add(new RemoteItem
@@ -141,27 +132,46 @@ public class SmackRemoteClient
     /// </summary>
     /// <param name="server">The remote server configuration.</param>
     /// <param name="itemId">The remote item id.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The absolute URL that can be used to stream the item, or null if unavailable.</returns>
-    public Task<Uri?> GetStreamUrlAsync(SmackRemoteServer server, string itemId, CancellationToken cancellationToken = default)
+    /// <returns>The absolute URL that can be used to stream the item, or null if itemId is empty.</returns>
+    public Uri? GetStreamUrl(SmackRemoteServer server, string itemId)
     {
         ArgumentNullException.ThrowIfNull(server);
 
         if (string.IsNullOrWhiteSpace(itemId))
         {
-            return Task.FromResult<Uri?>(null);
+            return null;
         }
 
+        var baseUri = GetValidatedBaseUri(server);
+
+        var relative = "Items/" + Uri.EscapeDataString(itemId) + "/Download?api_key=" + Uri.EscapeDataString(server.ApiKey);
+        return new Uri(baseUri, relative);
+    }
+
+    /// <summary>
+    /// Validates and normalizes the server URL to an absolute URI with trailing slash.
+    /// </summary>
+    /// <param name="server">The remote server configuration.</param>
+    /// <returns>The validated base URI.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the server URL is not a valid absolute URI.</exception>
+    private static Uri GetValidatedBaseUri(SmackRemoteServer server)
+    {
         if (!Uri.TryCreate(server.ServerUrl, UriKind.Absolute, out var baseUri))
         {
             throw new InvalidOperationException("Remote ServerUrl is not a valid absolute URI.");
         }
 
-        baseUri = new Uri(baseUri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+        return new Uri(baseUri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+    }
 
-        var relative = "Items/" + Uri.EscapeDataString(itemId) + "/Download?api_key=" + Uri.EscapeDataString(server.ApiKey);
-        var streamUri = new Uri(baseUri, relative);
-
-        return Task.FromResult<Uri?>(streamUri);
+    /// <summary>
+    /// Gets a string property from a JSON element, returning an empty string if not found.
+    /// </summary>
+    /// <param name="element">The JSON element.</param>
+    /// <param name="propertyName">The property name.</param>
+    /// <returns>The property value or an empty string.</returns>
+    private static string GetStringProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
     }
 }

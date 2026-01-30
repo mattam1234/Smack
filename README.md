@@ -3,6 +3,8 @@
 Smack is a Jellyfin plugin that lets one Jellyfin server browse and stream media from one or more remote Jellyfin servers.
 
 > Status: **Experimental / WIP** – APIs and behavior may change.
+> 
+> **Note**: The plugin GUID `11111111-2222-3333-4444-555555555555` is intentionally simple for development. If you fork this project for production use, generate a new unique GUID to avoid conflicts.
 
 ## Features
 - Configure one or more remote Jellyfin servers in the Jellyfin admin UI.
