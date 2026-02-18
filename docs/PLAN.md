@@ -71,14 +71,14 @@ Use a local Jellyfin instance to browse and stream media from one or more remote
 - [x] Add `smackBrowser.html` to browse servers, libraries, and items via `SmackController`.
 - [x] Integrate basic playback by returning a remote stream/download URL and opening it in a new tab.
 - [x] Add folder navigation, breadcrumb path, and an `Up` button in `smackBrowser.html`.
-- [ ] (Optional) Integrate with Jellyfin's native playback APIs instead of `window.open`.
+- [x] Integrate with Jellyfin's native playback APIs with fallback to `window.open` (implemented in `trySmackNativePlayback`).
 
 ### Phase 5 – Polish & enhancements
 - [x] Improve UX in config page (edit/delete servers, URL validation).
 - [x] Improve API key handling (mask input, don't show raw key, require re-entry only when needed).
 - [x] Improve UX in browser page (status line, better error display, placeholders).
+- [x] Expand test coverage (comprehensive HTTP mocked tests for SmackRemoteClient, parsing tests for libraries/items).
 - [ ] Add optional background sync or caching, if needed.
-- [ ] Expand test coverage (parsing tests for libraries/items, controller tests).
 - [ ] Document security considerations more deeply (threat model, recommended use).
 
 ## Notes
