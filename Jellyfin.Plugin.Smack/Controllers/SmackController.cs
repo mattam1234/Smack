@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Smack;
+using Jellyfin.Plugin.Smack.Models;
 using MediaBrowser.Controller.Net;
 using Microsoft.AspNetCore.Mvc;
 
@@ -65,30 +66,16 @@ public class SmackController : ControllerBase
     string serverId,
     CancellationToken cancellationToken)
     {
-        var config = Plugin.Instance?.Configuration;
-        if (config == null)
+        var validationResult = ValidateAndGetServer(serverId);
+        if (validationResult.ErrorResult != null)
         {
-            return NotFound("Plugin configuration not available.");
-        }
-
-        var server = config.RemoteServers
-            .FirstOrDefault(s => string.Equals(s.Id, serverId, StringComparison.OrdinalIgnoreCase));
-
-        if (server == null)
-        {
-            return NotFound("Remote server not found.");
-        }
-
-        if (string.IsNullOrWhiteSpace(server.ServerUrl) ||
-            string.IsNullOrWhiteSpace(server.ApiKey))
-        {
-            return BadRequest("Remote server is not fully configured.");
+            return validationResult.ErrorResult;
         }
 
         try
         {
             var libraries = await _remoteClient
-                .GetLibrariesAsync(server, cancellationToken)
+                .GetLibrariesAsync(validationResult.Server!, cancellationToken)
                 .ConfigureAwait(false);
 
             return Ok(libraries);
@@ -114,26 +101,15 @@ public class SmackController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<RemoteItem>), 200)]
     public async Task<ActionResult<IEnumerable<RemoteItem>>> GetItems(string serverId, string parentId, CancellationToken cancellationToken)
     {
-        var config = Plugin.Instance?.Configuration;
-        if (config == null)
+        var validationResult = ValidateAndGetServer(serverId);
+        if (validationResult.ErrorResult != null)
         {
-            return NotFound("Plugin configuration not available.");
-        }
-
-        var server = config.RemoteServers.FirstOrDefault(s => string.Equals(s.Id, serverId, StringComparison.OrdinalIgnoreCase));
-        if (server == null)
-        {
-            return NotFound("Remote server not found.");
-        }
-
-        if (string.IsNullOrWhiteSpace(server.ServerUrl) || string.IsNullOrWhiteSpace(server.ApiKey))
-        {
-            return BadRequest("Remote server is not fully configured.");
+            return validationResult.ErrorResult;
         }
 
         try
         {
-            var items = await _remoteClient.GetItemsAsync(server, parentId, cancellationToken).ConfigureAwait(false);
+            var items = await _remoteClient.GetItemsAsync(validationResult.Server!, parentId, cancellationToken).ConfigureAwait(false);
             return Ok(items);
         }
         catch (InvalidOperationException ex)
@@ -151,32 +127,20 @@ public class SmackController : ControllerBase
     /// </summary>
     /// <param name="serverId">The local identifier of the remote server.</param>
     /// <param name="itemId">The remote item id.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>An object containing the stream URL and basic metadata.</returns>
     [HttpGet("Stream/{serverId}/{itemId}")]
     [ProducesResponseType(typeof(object), 200)]
-    public async Task<ActionResult<object>> GetStream(string serverId, string itemId, CancellationToken cancellationToken)
+    public ActionResult<object> GetStream(string serverId, string itemId)
     {
-        var config = Plugin.Instance?.Configuration;
-        if (config == null)
+        var validationResult = ValidateAndGetServer(serverId);
+        if (validationResult.ErrorResult != null)
         {
-            return NotFound("Plugin configuration not available.");
-        }
-
-        var server = config.RemoteServers.FirstOrDefault(s => string.Equals(s.Id, serverId, StringComparison.OrdinalIgnoreCase));
-        if (server == null)
-        {
-            return NotFound("Remote server not found.");
-        }
-
-        if (string.IsNullOrWhiteSpace(server.ServerUrl) || string.IsNullOrWhiteSpace(server.ApiKey))
-        {
-            return BadRequest("Remote server is not fully configured.");
+            return validationResult.ErrorResult;
         }
 
         try
         {
-            var uri = await _remoteClient.GetStreamUrlAsync(server, itemId, cancellationToken).ConfigureAwait(false);
+            var uri = _remoteClient.GetStreamUrl(validationResult.Server!, itemId);
             if (uri == null)
             {
                 return NotFound("Unable to build stream URL for remote item.");
@@ -185,20 +149,45 @@ public class SmackController : ControllerBase
             return Ok(new
             {
                 StreamUrl = uri.ToString(),
-                ServerName = server.Name,
+                ServerName = validationResult.Server!.Name,
                 ItemId = itemId,
                 Protocol = "File",
                 MediaType = "Video",
-                Name = "Remote: " + (server.Name ?? "Server")
+                Name = "Remote: " + (validationResult.Server.Name ?? "Server")
             });
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(ex.Message);
         }
-        catch (HttpRequestException ex)
+    }
+
+    /// <summary>
+    /// Validates the plugin configuration and retrieves the specified server.
+    /// </summary>
+    /// <param name="serverId">The local identifier of the remote server.</param>
+    /// <returns>A validation result containing either the server or an error response.</returns>
+    private (SmackRemoteServer? Server, ActionResult? ErrorResult) ValidateAndGetServer(string serverId)
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (config == null)
         {
-            return StatusCode(502, "Remote server error: " + ex.Message);
+            return (null, NotFound("Plugin configuration not available."));
         }
+
+        var server = config.RemoteServers
+            .FirstOrDefault(s => string.Equals(s.Id, serverId, StringComparison.OrdinalIgnoreCase));
+
+        if (server == null)
+        {
+            return (null, NotFound("Remote server not found."));
+        }
+
+        if (string.IsNullOrWhiteSpace(server.ServerUrl) || string.IsNullOrWhiteSpace(server.ApiKey))
+        {
+            return (null, BadRequest("Remote server is not fully configured."));
+        }
+
+        return (server, null);
     }
 }
