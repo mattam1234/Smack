@@ -84,7 +84,8 @@ public class SmackRemoteClient
         parentId ??= string.Empty;
 
         var query = "Users/Me/Items?ParentId=" + Uri.EscapeDataString(parentId) +
-                    "&Fields=BasicSyncInfo&api_key=" + Uri.EscapeDataString(server.ApiKey);
+                    "&Fields=BasicSyncInfo,Overview,PrimaryImageAspectRatio&ImageTypeLimit=1&EnableImageTypes=Primary" +
+                    "&api_key=" + Uri.EscapeDataString(server.ApiKey);
 
         var requestUri = new Uri(baseUri, query);
 
@@ -113,18 +114,57 @@ public class SmackRemoteClient
                 var type = GetStringProperty(item, "Type");
                 var isFolder = item.TryGetProperty("IsFolder", out var folderProp) && folderProp.ValueKind == JsonValueKind.True;
 
+                int? year = GetProductionYear(item);
+                var overview = GetStringProperty(item, "Overview");
+                var imageUrl = string.Empty;
+                var primaryTag = GetPrimaryImageTag(item);
+                if (!string.IsNullOrEmpty(primaryTag))
+                {
+                    imageUrl = GetImageUrl(server, id, primaryTag);
+                }
+
                 list.Add(new RemoteItem
                 {
                     Id = id,
                     Name = name,
                     ParentId = parent,
                     Type = type,
-                    IsFolder = isFolder
+                    IsFolder = isFolder,
+                    Year = year,
+                    Overview = overview,
+                    ImageUrl = imageUrl
                 });
             }
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// Builds the URL for a remote item's primary thumbnail image.
+    /// </summary>
+    /// <param name="server">The remote server configuration.</param>
+    /// <param name="itemId">The remote item id.</param>
+    /// <param name="imageTag">The primary image tag from the item's ImageTags.</param>
+    /// <returns>The absolute URL to the primary image, or an empty string if itemId is empty.</returns>
+    public string GetImageUrl(SmackRemoteServer server, string itemId, string imageTag = "")
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return string.Empty;
+        }
+
+        var baseUri = GetValidatedBaseUri(server);
+        var relative = "Items/" + Uri.EscapeDataString(itemId) + "/Images/Primary?api_key=" + Uri.EscapeDataString(server.ApiKey) + "&maxHeight=300";
+
+        if (!string.IsNullOrEmpty(imageTag))
+        {
+            relative += "&tag=" + Uri.EscapeDataString(imageTag);
+        }
+
+        return new Uri(baseUri, relative).ToString();
     }
 
     /// <summary>
@@ -173,5 +213,39 @@ public class SmackRemoteClient
     private static string GetStringProperty(JsonElement element, string propertyName)
     {
         return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+    }
+
+    /// <summary>
+    /// Extracts the production year from a Jellyfin item JSON element.
+    /// </summary>
+    /// <param name="element">The JSON element representing a Jellyfin item.</param>
+    /// <returns>The production year, or <c>null</c> if not present or not a valid number.</returns>
+    private static int? GetProductionYear(JsonElement element)
+    {
+        if (element.TryGetProperty("ProductionYear", out var yearProp)
+            && yearProp.ValueKind == JsonValueKind.Number
+            && yearProp.TryGetInt32(out var yearVal))
+        {
+            return yearVal;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the primary image tag string from a Jellyfin item's <c>ImageTags</c> property.
+    /// </summary>
+    /// <param name="element">The JSON element representing a Jellyfin item.</param>
+    /// <returns>The primary image tag string, or an empty string if not present.</returns>
+    private static string GetPrimaryImageTag(JsonElement element)
+    {
+        if (element.TryGetProperty("ImageTags", out var imageTagsProp)
+            && imageTagsProp.ValueKind == JsonValueKind.Object
+            && imageTagsProp.TryGetProperty("Primary", out var primaryTagProp))
+        {
+            return primaryTagProp.GetString() ?? string.Empty;
+        }
+
+        return string.Empty;
     }
 }
