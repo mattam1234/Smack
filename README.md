@@ -168,11 +168,30 @@ The compiled plugin will be located in `Jellyfin.Plugin.Smack/bin/Release/net9.0
 
 ⚠️ **Important Security Considerations**
 
+### Threat Model
+
+Smack bridges two Jellyfin instances. Understanding what it does and does not protect against is important before deploying it.
+
+| Threat | Mitigated? | Notes |
+|--------|-----------|-------|
+| Unauthorized access to remote media | ✅ Partial | Controlled by remote API key permissions |
+| API key exposure via config files | ❌ No | Keys are stored in plaintext on the local server's filesystem |
+| API key exposure via UI | ✅ Yes | Keys are masked on entry and shown as "configured" only |
+| API key in stream/image URLs | ⚠️ Partial | Key appears in URLs returned to the browser; use HTTPS to prevent interception |
+| Man-in-the-middle on remote traffic | ⚠️ Partial | Use HTTPS on both servers; enforce TLS certificate validation |
+| Remote server enumeration | ✅ Yes | Server list endpoint omits API keys |
+| Unauthenticated access to Smack endpoints | ✅ Yes | Jellyfin's own authentication protects `/Smack/*` API routes |
+
 ### API Key Storage
 - Remote API keys are stored in **plain text** in Jellyfin's configuration files
 - **Recommendation**: Use a dedicated, restricted user account on remote servers
 - **Do not** use administrator or highly-privileged accounts
 - Only grant access to the specific libraries you want to share
+
+### API Key in URLs
+- Stream URLs and thumbnail image URLs include the remote API key as a query parameter (`api_key=...`)
+- These URLs are only returned to authenticated Jellyfin sessions
+- **Always use HTTPS** on both local and remote servers to prevent the key from being intercepted in transit
 
 ### Configuration UI Security
 - API key input fields are masked during entry
@@ -181,7 +200,7 @@ The compiled plugin will be located in `Jellyfin.Plugin.Smack/bin/Release/net9.0
 - This prevents accidental exposure in screenshots or over-the-shoulder viewing
 
 ### Network Security
-- Remote streams are accessed directly from the remote Jellyfin server
+- Remote streams and thumbnails are loaded directly from the remote Jellyfin server by the user's browser
 - **Production use**: Always use HTTPS for both local and remote servers
 - Ensure proper SSL/TLS certificate configuration
 - Consider using VPN or secure tunneling for remote access

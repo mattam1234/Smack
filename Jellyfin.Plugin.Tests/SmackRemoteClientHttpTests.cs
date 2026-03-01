@@ -342,4 +342,168 @@ public class SmackRemoteClientHttpTests
         Assert.NotNull(items);
         Assert.Empty(items);
     }
+
+    [Fact]
+    public async Task GetItemsAsync_PopulatesYearAndOverview()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    {
+                        "Id": "item1",
+                        "Name": "Inception",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "ProductionYear": 2010,
+                        "Overview": "A thief who steals corporate secrets through dream-sharing technology."
+                    },
+                    {
+                        "Id": "item2",
+                        "Name": "Folder Without Year",
+                        "Type": "Folder",
+                        "IsFolder": true
+                    }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer
+        {
+            ServerUrl = "https://example.com",
+            ApiKey = "test-key"
+        };
+
+        // Act
+        var items = await client.GetItemsAsync(server, "parent1", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, items.Count);
+
+        Assert.Equal(2010, items[0].Year);
+        Assert.Equal("A thief who steals corporate secrets through dream-sharing technology.", items[0].Overview);
+
+        Assert.Null(items[1].Year);
+        Assert.Equal(string.Empty, items[1].Overview);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_PopulatesImageUrl_WhenPrimaryImageTagPresent()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    {
+                        "Id": "item1",
+                        "Name": "Movie With Image",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "ImageTags": { "Primary": "abc123tag" }
+                    },
+                    {
+                        "Id": "item2",
+                        "Name": "Movie Without Image",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "ImageTags": {}
+                    },
+                    {
+                        "Id": "item3",
+                        "Name": "Item No ImageTags",
+                        "Type": "Folder",
+                        "IsFolder": true
+                    }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer
+        {
+            ServerUrl = "https://example.com",
+            ApiKey = "test-key"
+        };
+
+        // Act
+        var items = await client.GetItemsAsync(server, "parent1", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(3, items.Count);
+
+        // Item with primary image tag should have a non-empty ImageUrl
+        Assert.NotEmpty(items[0].ImageUrl);
+        Assert.Contains("Items/item1/Images/Primary", items[0].ImageUrl);
+        Assert.Contains("api_key=test-key", items[0].ImageUrl);
+        Assert.Contains("tag=abc123tag", items[0].ImageUrl);
+
+        // Item with empty ImageTags should have no ImageUrl
+        Assert.Equal(string.Empty, items[1].ImageUrl);
+
+        // Item with no ImageTags property should have no ImageUrl
+        Assert.Equal(string.Empty, items[2].ImageUrl);
+    }
+
+    [Fact]
+    public void GetImageUrl_BuildsExpectedUrl()
+    {
+        // Arrange
+        using var httpClient = new HttpClient();
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer
+        {
+            ServerUrl = "https://remote.example.com/jellyfin",
+            ApiKey = "mykey"
+        };
+
+        // Act
+        var url = client.GetImageUrl(server, "item-99", "tag123");
+
+        // Assert
+        Assert.Equal(
+            "https://remote.example.com/jellyfin/Items/item-99/Images/Primary?api_key=mykey&maxHeight=300&tag=tag123",
+            url);
+    }
+
+    [Fact]
+    public void GetImageUrl_ReturnsEmpty_WhenItemIdMissing()
+    {
+        // Arrange
+        using var httpClient = new HttpClient();
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer
+        {
+            ServerUrl = "https://remote.example.com",
+            ApiKey = "key"
+        };
+
+        // Act
+        var url = client.GetImageUrl(server, string.Empty);
+
+        // Assert
+        Assert.Equal(string.Empty, url);
+    }
+
+    [Fact]
+    public void GetImageUrl_OmitsTagParameter_WhenTagIsEmpty()
+    {
+        // Arrange
+        using var httpClient = new HttpClient();
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer
+        {
+            ServerUrl = "https://remote.example.com",
+            ApiKey = "key"
+        };
+
+        // Act
+        var url = client.GetImageUrl(server, "item-1");
+
+        // Assert
+        Assert.DoesNotContain("tag=", url);
+        Assert.Contains("Items/item-1/Images/Primary", url);
+    }
 }

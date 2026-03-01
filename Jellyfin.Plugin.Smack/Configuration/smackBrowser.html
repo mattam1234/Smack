@@ -187,6 +187,14 @@
 
                     overlay.appendChild(overlayIcon);
 
+                    if (item.ImageUrl) {
+                        var img = document.createElement('img');
+                        img.src = item.ImageUrl;
+                        img.alt = item.Name || '';
+                        img.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;';
+                        innerCardBox.appendChild(img);
+                    }
+
                     var content = document.createElement('div');
                     content.className = 'cardPadder cardContent';
 
@@ -195,6 +203,13 @@
                     title.textContent = item.Name || item.Id;
 
                     content.appendChild(title);
+
+                    if (item.Year) {
+                        var yearEl = document.createElement('div');
+                        yearEl.className = 'cardText cardText-secondary cardTextCentered';
+                        yearEl.textContent = item.Year;
+                        content.appendChild(yearEl);
+                    }
 
                     innerCardBox.appendChild(overlay);
                     innerCardBox.appendChild(content);

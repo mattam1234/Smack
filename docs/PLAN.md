@@ -79,7 +79,7 @@ Use a local Jellyfin instance to browse and stream media from one or more remote
 - [x] Improve UX in browser page (status line, better error display, placeholders).
 - [x] Expand test coverage (comprehensive HTTP mocked tests for SmackRemoteClient, parsing tests for libraries/items).
 - [ ] Add optional background sync or caching, if needed.
-- [ ] Document security considerations more deeply (threat model, recommended use).
+- [x] Document security considerations more deeply (threat model, recommended use).
 
 ## Notes
 - Target framework: .NET 9 (C# 13 features are available but used only when they add clear value).
