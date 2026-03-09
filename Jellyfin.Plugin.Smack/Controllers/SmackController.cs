@@ -163,6 +163,43 @@ public class SmackController : ControllerBase
     }
 
     /// <summary>
+    /// Search for items on a remote Jellyfin server.
+    /// </summary>
+    /// <param name="serverId">The local identifier of the remote server.</param>
+    /// <param name="query">The search term.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A list of matching items from the remote server.</returns>
+    [HttpGet("Search/{serverId}")]
+    [ProducesResponseType(typeof(IEnumerable<RemoteItem>), 200)]
+    public async Task<ActionResult<IEnumerable<RemoteItem>>> Search(string serverId, [FromQuery] string query, CancellationToken cancellationToken)
+    {
+        var validationResult = ValidateAndGetServer(serverId);
+        if (validationResult.ErrorResult != null)
+        {
+            return validationResult.ErrorResult;
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest("A non-empty search query is required.");
+        }
+
+        try
+        {
+            var items = await _remoteClient.SearchAsync(validationResult.Server!, query, cancellationToken).ConfigureAwait(false);
+            return Ok(items);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, "Remote server error: " + ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Validates the plugin configuration and retrieves the specified server.
     /// </summary>
     /// <param name="serverId">The local identifier of the remote server.</param>

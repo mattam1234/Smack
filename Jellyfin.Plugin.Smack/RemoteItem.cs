@@ -48,4 +48,16 @@ public sealed class RemoteItem
     /// item has no primary image.
     /// </summary>
     public string ImageUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the run time of the item in 100-nanosecond ticks (Jellyfin convention).
+    /// Null when not available (e.g. folders).
+    /// </summary>
+    public long? RunTimeTicks { get; set; }
+
+    /// <summary>
+    /// Gets or sets the community rating of the item (0–10 scale from Jellyfin).
+    /// Null when not available.
+    /// </summary>
+    public double? CommunityRating { get; set; }
 }

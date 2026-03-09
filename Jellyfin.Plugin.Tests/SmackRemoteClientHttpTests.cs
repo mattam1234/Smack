@@ -506,4 +506,179 @@ public class SmackRemoteClientHttpTests
         Assert.DoesNotContain("tag=", url);
         Assert.Contains("Items/item-1/Images/Primary", url);
     }
+
+    [Fact]
+    public async Task GetItemsAsync_PopulatesRunTimeTicks_WhenPresent()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    {
+                        "Id": "item1",
+                        "Name": "Movie",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "RunTimeTicks": 72000000000
+                    },
+                    {
+                        "Id": "item2",
+                        "Name": "Folder",
+                        "Type": "Folder",
+                        "IsFolder": true
+                    }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "key" };
+
+        // Act
+        var items = await client.GetItemsAsync(server, "parent", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(72000000000L, items[0].RunTimeTicks);
+        Assert.Null(items[1].RunTimeTicks);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_PopulatesCommunityRating_WhenPresent()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    {
+                        "Id": "item1",
+                        "Name": "Movie",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "CommunityRating": 7.8
+                    },
+                    {
+                        "Id": "item2",
+                        "Name": "Other Movie",
+                        "Type": "Movie",
+                        "IsFolder": false
+                    }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "key" };
+
+        // Act
+        var items = await client.GetItemsAsync(server, "parent", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(7.8, items[0].CommunityRating);
+        Assert.Null(items[1].CommunityRating);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ReturnsEmpty_WhenSearchTermIsBlank()
+    {
+        // Arrange
+        using var httpClient = new HttpClient();
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "key" };
+
+        // Act
+        var results = await client.SearchAsync(server, "   ", CancellationToken.None);
+
+        // Assert
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_Throws_WhenServerNull()
+    {
+        // Arrange
+        using var httpClient = new HttpClient();
+        var client = new SmackRemoteClient(httpClient);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            client.SearchAsync(null!, "query", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SearchAsync_ParsesValidResponse()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    {
+                        "Id": "m1",
+                        "Name": "Inception",
+                        "Type": "Movie",
+                        "IsFolder": false,
+                        "ProductionYear": 2010,
+                        "RunTimeTicks": 86400000000,
+                        "CommunityRating": 8.8
+                    }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "key" };
+
+        // Act
+        var results = await client.SearchAsync(server, "inception", CancellationToken.None);
+
+        // Assert
+        Assert.Single(results);
+        Assert.Equal("m1", results[0].Id);
+        Assert.Equal("Inception", results[0].Name);
+        Assert.Equal(2010, results[0].Year);
+        Assert.Equal(86400000000L, results[0].RunTimeTicks);
+        Assert.Equal(8.8, results[0].CommunityRating);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HandlesHttpError()
+    {
+        // Arrange
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.Unauthorized, "Unauthorized");
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "bad-key" };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            client.SearchAsync(server, "anything", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SearchAsync_SkipsItemsWithoutId()
+    {
+        // Arrange
+        var jsonResponse = """
+            {
+                "Items": [
+                    { "Id": "r1", "Name": "Result 1", "Type": "Movie" },
+                    { "Name": "No Id" },
+                    { "Id": "r2", "Name": "Result 2", "Type": "Movie" }
+                ]
+            }
+            """;
+
+        using var httpClient = CreateMockHttpClient(HttpStatusCode.OK, jsonResponse);
+        var client = new SmackRemoteClient(httpClient);
+        var server = new SmackRemoteServer { ServerUrl = "https://example.com", ApiKey = "key" };
+
+        // Act
+        var results = await client.SearchAsync(server, "result", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, results.Count);
+        Assert.Equal("r1", results[0].Id);
+        Assert.Equal("r2", results[1].Id);
+    }
 }
