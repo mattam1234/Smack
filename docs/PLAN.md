@@ -78,8 +78,16 @@ Use a local Jellyfin instance to browse and stream media from one or more remote
 - [x] Improve API key handling (mask input, don't show raw key, require re-entry only when needed).
 - [x] Improve UX in browser page (status line, better error display, placeholders).
 - [x] Expand test coverage (comprehensive HTTP mocked tests for SmackRemoteClient, parsing tests for libraries/items).
-- [ ] Add optional background sync or caching, if needed.
+- [x] Add optional background sync or caching, if needed.
 - [x] Document security considerations more deeply (threat model, recommended use).
+
+## Phase 6 – Search and richer metadata
+- [x] Add `RunTimeTicks` and `CommunityRating` fields to `RemoteItem`.
+- [x] Populate `RunTimeTicks` and `CommunityRating` in `GetItemsAsync`.
+- [x] Add `SearchAsync(server, query)` to `SmackRemoteClient` (uses `/Items?SearchTerm=…&Recursive=true`).
+- [x] Add `GET /Smack/Search/{serverId}?query={term}` endpoint to `SmackController`.
+- [x] Surface search box in `smackBrowser.html` with keyboard (Enter) support and a Clear button.
+- [x] Display runtime and community rating on media cards in the browser UI.
 
 ## Notes
 - Target framework: .NET 9 (C# 13 features are available but used only when they add clear value).

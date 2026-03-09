@@ -219,7 +219,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the detailed implementation plan and rema
 ### Potential Future Enhancements
 - Background sync/caching of remote content
 - Advanced playback integration
-- Multi-server search
+- ~~Multi-server search~~ ✅ Added per-server search
 - Remote library aggregation
 
 ## Development

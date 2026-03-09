@@ -84,7 +84,7 @@ public class SmackRemoteClient
         parentId ??= string.Empty;
 
         var query = "Users/Me/Items?ParentId=" + Uri.EscapeDataString(parentId) +
-                    "&Fields=BasicSyncInfo,Overview,PrimaryImageAspectRatio&ImageTypeLimit=1&EnableImageTypes=Primary" +
+                    "&Fields=BasicSyncInfo,Overview,PrimaryImageAspectRatio,RunTimeTicks,CommunityRating&ImageTypeLimit=1&EnableImageTypes=Primary" +
                     "&api_key=" + Uri.EscapeDataString(server.ApiKey);
 
         var requestUri = new Uri(baseUri, query);
@@ -123,6 +123,9 @@ public class SmackRemoteClient
                     imageUrl = GetImageUrl(server, id, primaryTag);
                 }
 
+                long? runTimeTicks = GetRunTimeTicks(item);
+                double? communityRating = GetCommunityRating(item);
+
                 list.Add(new RemoteItem
                 {
                     Id = id,
@@ -132,7 +135,9 @@ public class SmackRemoteClient
                     IsFolder = isFolder,
                     Year = year,
                     Overview = overview,
-                    ImageUrl = imageUrl
+                    ImageUrl = imageUrl,
+                    RunTimeTicks = runTimeTicks,
+                    CommunityRating = communityRating
                 });
             }
         }
@@ -186,6 +191,87 @@ public class SmackRemoteClient
 
         var relative = "Items/" + Uri.EscapeDataString(itemId) + "/Download?api_key=" + Uri.EscapeDataString(server.ApiKey);
         return new Uri(baseUri, relative);
+    }
+
+    /// <summary>
+    /// Searches for items on a remote Jellyfin server matching the given query string.
+    /// </summary>
+    /// <param name="server">The remote server configuration.</param>
+    /// <param name="searchTerm">The search term to send to the remote server.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A list of matching remote items (limited to 50 results).</returns>
+    public async Task<IReadOnlyList<RemoteItem>> SearchAsync(SmackRemoteServer server, string searchTerm, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            return Array.Empty<RemoteItem>();
+        }
+
+        var baseUri = GetValidatedBaseUri(server);
+
+        var query = "Items?SearchTerm=" + Uri.EscapeDataString(searchTerm) +
+                    "&Recursive=true&Limit=50" +
+                    "&Fields=BasicSyncInfo,Overview,PrimaryImageAspectRatio,RunTimeTicks,CommunityRating&ImageTypeLimit=1&EnableImageTypes=Primary" +
+                    "&api_key=" + Uri.EscapeDataString(server.ApiKey);
+
+        var requestUri = new Uri(baseUri, query);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var root = json.RootElement;
+
+        var list = new List<RemoteItem>();
+
+        if (root.TryGetProperty("Items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in itemsElement.EnumerateArray())
+            {
+                var id = GetStringProperty(item, "Id");
+                if (string.IsNullOrEmpty(id))
+                {
+                    continue;
+                }
+
+                var name = GetStringProperty(item, "Name");
+                var parent = GetStringProperty(item, "ParentId");
+                var type = GetStringProperty(item, "Type");
+                var isFolder = item.TryGetProperty("IsFolder", out var folderProp) && folderProp.ValueKind == JsonValueKind.True;
+
+                int? year = GetProductionYear(item);
+                var overview = GetStringProperty(item, "Overview");
+                var imageUrl = string.Empty;
+                var primaryTag = GetPrimaryImageTag(item);
+                if (!string.IsNullOrEmpty(primaryTag))
+                {
+                    imageUrl = GetImageUrl(server, id, primaryTag);
+                }
+
+                long? runTimeTicks = GetRunTimeTicks(item);
+                double? communityRating = GetCommunityRating(item);
+
+                list.Add(new RemoteItem
+                {
+                    Id = id,
+                    Name = name,
+                    ParentId = parent,
+                    Type = type,
+                    IsFolder = isFolder,
+                    Year = year,
+                    Overview = overview,
+                    ImageUrl = imageUrl,
+                    RunTimeTicks = runTimeTicks,
+                    CommunityRating = communityRating
+                });
+            }
+        }
+
+        return list;
     }
 
     /// <summary>
@@ -247,5 +333,39 @@ public class SmackRemoteClient
         }
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Extracts the run-time ticks from a Jellyfin item JSON element.
+    /// </summary>
+    /// <param name="element">The JSON element representing a Jellyfin item.</param>
+    /// <returns>The run-time ticks value, or <c>null</c> if not present or not a valid number.</returns>
+    private static long? GetRunTimeTicks(JsonElement element)
+    {
+        if (element.TryGetProperty("RunTimeTicks", out var ticksProp)
+            && ticksProp.ValueKind == JsonValueKind.Number
+            && ticksProp.TryGetInt64(out var ticksVal))
+        {
+            return ticksVal;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the community rating from a Jellyfin item JSON element.
+    /// </summary>
+    /// <param name="element">The JSON element representing a Jellyfin item.</param>
+    /// <returns>The community rating value, or <c>null</c> if not present or not a valid number.</returns>
+    private static double? GetCommunityRating(JsonElement element)
+    {
+        if (element.TryGetProperty("CommunityRating", out var ratingProp)
+            && ratingProp.ValueKind == JsonValueKind.Number
+            && ratingProp.TryGetDouble(out var ratingVal))
+        {
+            return ratingVal;
+        }
+
+        return null;
     }
 }
