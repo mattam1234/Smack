@@ -27,6 +27,19 @@
                     <label class="inputLabel">Items</label>
                     <div id="SmackBrowserItemsList" class="itemsContainer itemsContainer-persons autoScrollY"></div>
                 </div>
+
+                <div id="SmackBrowserSearch" class="inputContainer">
+                    <label class="inputLabel">Search</label>
+                    <div style="display:flex;gap:0.5em;align-items:center;">
+                        <input id="SmackBrowserSearchInput" type="text" is="emby-input" placeholder="Search remote server..." style="flex:1;" />
+                        <button is="emby-button" type="button" id="SmackBrowserSearchButton" class="raised emby-button">
+                            <span>Search</span>
+                        </button>
+                        <button is="emby-button" type="button" id="SmackBrowserSearchClearButton" class="emby-button" style="display:none;">
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -39,6 +52,28 @@
             function setSmackStatus(message) {
                 var el = document.querySelector('#SmackBrowserStatus');
                 el.textContent = message || '';
+            }
+
+            function formatSmackRuntime(ticks) {
+                if (!ticks) {
+                    return null;
+                }
+
+                var minutes = Math.round(ticks / 600000000);
+                if (minutes < 60) {
+                    return minutes + ' min';
+                }
+
+                var hours = Math.floor(minutes / 60);
+                var mins = minutes % 60;
+                return mins > 0 ? hours + 'h ' + mins + 'm' : hours + 'h';
+            }
+
+            function createSecondaryCardText(text) {
+                var el = document.createElement('div');
+                el.className = 'cardText cardText-secondary cardTextCentered';
+                el.textContent = text;
+                return el;
             }
 
             function smackFetchJson(url) {
@@ -205,10 +240,15 @@
                     content.appendChild(title);
 
                     if (item.Year) {
-                        var yearEl = document.createElement('div');
-                        yearEl.className = 'cardText cardText-secondary cardTextCentered';
-                        yearEl.textContent = item.Year;
-                        content.appendChild(yearEl);
+                        content.appendChild(createSecondaryCardText(item.Year));
+                    }
+
+                    if (!item.IsFolder && item.RunTimeTicks) {
+                        content.appendChild(createSecondaryCardText(formatSmackRuntime(item.RunTimeTicks)));
+                    }
+
+                    if (!item.IsFolder && item.CommunityRating) {
+                        content.appendChild(createSecondaryCardText('★ ' + item.CommunityRating.toFixed(1)));
                     }
 
                     innerCardBox.appendChild(overlay);
@@ -326,6 +366,26 @@
                     });
             }
 
+            function searchSmackItems(serverId, query) {
+                if (!serverId || !query) {
+                    return;
+                }
+
+                setSmackStatus('Searching...');
+                var url = SmackBrowser.pluginBasePath + '/Search/' +
+                    encodeURIComponent(serverId) + '?query=' + encodeURIComponent(query);
+
+                smackFetchJson(url)
+                    .then(function (items) {
+                        SmackBrowser.navigationStack = [];
+                        renderSmackItems(items, serverId, null);
+                        document.querySelector('#SmackBrowserSearchClearButton').style.display = '';
+                    })
+                    .catch(function (e) {
+                        setSmackStatus('Search failed: ' + e.message);
+                    });
+            }
+
             document.querySelector('#SmackBrowserServerSelect')
                 .addEventListener('change', function () {
                     var serverId = this.value;
@@ -348,6 +408,38 @@
                 .addEventListener('pageshow', function () {
                     setSmackStatus('');
                     loadSmackServers();
+                });
+
+            document.querySelector('#SmackBrowserSearchButton')
+                .addEventListener('click', function () {
+                    var serverId = document.querySelector('#SmackBrowserServerSelect').value;
+                    var query = document.querySelector('#SmackBrowserSearchInput').value.trim();
+                    if (!serverId) {
+                        setSmackStatus('Select a server before searching.');
+                        return;
+                    }
+
+                    if (!query) {
+                        setSmackStatus('Enter a search term.');
+                        return;
+                    }
+
+                    searchSmackItems(serverId, query);
+                });
+
+            document.querySelector('#SmackBrowserSearchInput')
+                .addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        document.querySelector('#SmackBrowserSearchButton').click();
+                    }
+                });
+
+            document.querySelector('#SmackBrowserSearchClearButton')
+                .addEventListener('click', function () {
+                    document.querySelector('#SmackBrowserSearchInput').value = '';
+                    this.style.display = 'none';
+                    document.querySelector('#SmackBrowserItemsList').innerHTML = '';
+                    setSmackStatus('');
                 });
         </script>
     </div>
